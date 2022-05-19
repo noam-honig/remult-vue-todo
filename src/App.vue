@@ -1,81 +1,96 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
+import type { ErrorInfo } from 'remult';
+import { onMounted, ref } from 'vue'
+import { remult, setAuthToken } from './common';
+import { AuthController } from './shared/AuthController';
+import { Task } from './shared/Task';
+import { TasksController } from './shared/TasksController';
+
+const taskRepo = remult.repo(Task);
+const tasks = ref<(Task & { error?: ErrorInfo<Task> })[]>([]);
+const hideCompleted = ref(false);
+const username = ref('');
+async function fetchTasks() {
+  if (!taskRepo.metadata.apiReadAllowed)
+    return;
+  tasks.value = await taskRepo.find({
+    orderBy: {
+      completed: "asc"
+    },
+    where: {
+      completed: hideCompleted.value ? false : undefined
+    }
+
+  });
+}
+
+async function saveTask(task: (Task & { error?: ErrorInfo<Task> })) {
+  try {
+    const savedTask = await taskRepo.save(task);
+    tasks.value = tasks.value.map(t => t === task ? savedTask : t);
+  } catch (error: any) {
+    alert(error.message);
+    task.error = error;
+  }
+}
+async function deleteTask(task: Task) {
+  await taskRepo.delete(task);
+  tasks.value = tasks.value.filter(t => t !== task);
+}
+function addTask() {
+  tasks.value.push(new Task());
+}
+
+async function setAll(completed: boolean) {
+  await TasksController.setAll(completed);
+  fetchTasks()
+};
+
+const signIn = async () => {
+  try {
+    setAuthToken(await AuthController.signIn(username.value));
+    window.location.reload();
+  }
+  catch (error: any) {
+    alert(error.message);
+  }
+}
+
+const signOut = () => {
+  setAuthToken(null);
+  window.location.reload();
+}
+
+onMounted(async () => { fetchTasks() })
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+  <template v-if="!remult.authenticated()">
+    <p>
+      <input v-model="username" />
+      <button @click="signIn()">Sign in</button>
+    </p>
+  </template>
+  <template v-if="remult.authenticated()">
+    <p>
+      Hi {{ remult.user.name }} <button @click="signOut()">Sign out</button>
+    </p>
+    <input type="checkbox" v-model="hideCompleted" @change="fetchTasks()" /> Hide Completed {{ hideCompleted }}
+    <hr />
+    <div v-for="task in tasks">
+      <input type="checkbox" v-model="task.completed" />
+      <input v-model="task.title">
+      {{ task.error?.modelState?.title }}
+      <button @click="saveTask(task)">Save</button>
+      <button @click="deleteTask(task)">Delete</button>
     </div>
-  </header>
-
-  <main>
-    <TheWelcome />
-  </main>
+    <button @click="addTask()">Add Task</button>
+    <div>
+      <button @click="setAll(true)">Set all as completed</button>
+      <button @click="setAll(false)">Set all as uncompleted</button>
+    </div>
+  </template>
 </template>
 
 <style>
-@import './assets/base.css';
-
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-
-  font-weight: normal;
-}
-
-header {
-  line-height: 1.5;
-}
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-a,
-.green {
-  text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-}
-
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
-}
-
-@media (min-width: 1024px) {
-  body {
-    display: flex;
-    place-items: center;
-  }
-
-  #app {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0 2rem;
-  }
-
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-}
 </style>
