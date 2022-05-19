@@ -5,7 +5,7 @@
     "start": "node dist/server/",
     "dev": "concurrently -k -n \"API,WEB\" -c \"bgBlue.bold,bgGreen.bold\" \"ts-node-dev -P tsconfig.server.json src/server/\" \"vite\"",
     "dev1": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --noEmit && vite build && tsc -p tsconfig.server.json",
     "preview": "vite preview --port 5050",
     "typecheck": "vue-tsc --noEmit"
   },
